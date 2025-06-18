@@ -5,9 +5,11 @@ import { verifyUserToken, validateActivationKey } from '@/lib/auth-utils';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { credentialId: string } }
+  context: { params: Promise<{ credentialId: string }> }
 ) {
   try {
+    const { credentialId } = await context.params;
+
     const decoded = await verifyUserToken(request);
     if (!decoded) {
       return NextResponse.json({ error: 'User authentication failed' }, { status: 401 });
@@ -33,7 +35,7 @@ export async function DELETE(
     const { db } = await connectToDatabase();
 
     const result = await db.collection('credentials').deleteOne({
-      _id: new ObjectId(params.credentialId),
+      _id: new ObjectId(credentialId),
       userId: new ObjectId(decoded.userId),
     });
 
