@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
-export async function DELETE(request: NextRequest, context: { params: { keyId: string } }) {
+export async function DELETE(request: NextRequest) {
   try {
     const cookieStore = await cookies();
     const adminSession = cookieStore.get('admin_session');
@@ -11,8 +11,14 @@ export async function DELETE(request: NextRequest, context: { params: { keyId: s
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const keyId = url.pathname.split('/').pop(); // lấy [keyId] từ URL
+
+    if (!keyId || !ObjectId.isValid(keyId)) {
+      return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
+    }
+
     const { db } = await connectToDatabase();
-    const keyId = context.params.keyId;
 
     const keyToDelete = await db
       .collection('activation_keys')
