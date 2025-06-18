@@ -4,10 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { assignmentId: string } }
-) {
+export async function PATCH(request: NextRequest) {
   try {
     const token = request.cookies.get('auth_token')?.value;
     if (!token) {
@@ -19,10 +16,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
+    const url = new URL(request.url);
+    const assignmentId = url.pathname.split('/').pop(); // lấy từ /api/.../assignments/[assignmentId]
+
+    if (!assignmentId || !ObjectId.isValid(assignmentId)) {
+      return NextResponse.json({ error: 'Invalid assignment ID' }, { status: 400 });
+    }
+
     const { status, expiresAt, notes, metadata } = await request.json();
     const { db } = await connectToDatabase();
 
-    const updateData: any = {};
+    const updateData: Record<string, any> = {};
     if (status) updateData.status = status;
     if (expiresAt !== undefined) updateData.expiresAt = expiresAt ? new Date(expiresAt) : null;
     if (notes !== undefined) updateData.notes = notes;
@@ -30,18 +34,17 @@ export async function PATCH(
 
     const result = await db
       .collection('user_key_assignments')
-      .updateOne({ _id: new ObjectId(params.assignmentId) }, { $set: updateData });
+      .updateOne({ _id: new ObjectId(assignmentId) }, { $set: updateData });
 
     if (result.matchedCount === 0) {
       return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
     }
 
-    // Log the update
     await db.collection('audit_logs').insertOne({
       action: 'update',
       userId: decoded.userId,
       resourceType: 'user_key_assignment',
-      resourceId: params.assignmentId,
+      resourceId: assignmentId,
       details: updateData,
       timestamp: new Date(),
     });
@@ -53,10 +56,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { assignmentId: string } }
-) {
+export async function DELETE(request: NextRequest) {
   try {
     const token = request.cookies.get('auth_token')?.value;
     if (!token) {
@@ -68,10 +68,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
+    const url = new URL(request.url);
+    const assignmentId = url.pathname.split('/').pop();
+
+    if (!assignmentId || !ObjectId.isValid(assignmentId)) {
+      return NextResponse.json({ error: 'Invalid assignment ID' }, { status: 400 });
+    }
+
     const { db } = await connectToDatabase();
 
     const assignment = await db.collection('user_key_assignments').findOne({
-      _id: new ObjectId(params.assignmentId),
+      _id: new ObjectId(assignmentId),
     });
 
     if (!assignment) {
@@ -79,15 +86,14 @@ export async function DELETE(
     }
 
     await db.collection('user_key_assignments').deleteOne({
-      _id: new ObjectId(params.assignmentId),
+      _id: new ObjectId(assignmentId),
     });
 
-    // Log the deletion
     await db.collection('audit_logs').insertOne({
       action: 'revoke_key',
       userId: decoded.userId,
       resourceType: 'user_key_assignment',
-      resourceId: params.assignmentId,
+      resourceId: assignmentId,
       details: {
         userId: assignment.userId,
         keyId: assignment.keyId,

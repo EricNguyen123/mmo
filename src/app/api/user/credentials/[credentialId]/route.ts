@@ -3,12 +3,16 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { verifyUserToken, validateActivationKey } from '@/lib/auth-utils';
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ credentialId: string }> }
-) {
+export async function DELETE(request: NextRequest) {
   try {
-    const { credentialId } = await context.params;
+    // Extract credentialId from URL
+    const url = new URL(request.url);
+    const segments = url.pathname.split('/');
+    const credentialId = segments.pop() || segments.pop(); // handle trailing slash
+
+    if (!credentialId || !ObjectId.isValid(credentialId)) {
+      return NextResponse.json({ error: 'Invalid credential ID' }, { status: 400 });
+    }
 
     const decoded = await verifyUserToken(request);
     if (!decoded) {

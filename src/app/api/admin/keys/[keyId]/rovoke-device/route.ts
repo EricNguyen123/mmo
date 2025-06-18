@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
-export async function POST(request: NextRequest, { params }: { params: { keyId: string } }) {
+export async function POST(request: NextRequest) {
   try {
     // Check admin authentication
     const adminSession = (await cookies()).get('admin_session');
@@ -12,21 +12,29 @@ export async function POST(request: NextRequest, { params }: { params: { keyId: 
     }
 
     const { deviceId, assignmentId } = await request.json();
-    const { db } = await connectToDatabase();
+
+    const url = new URL(request.url);
+    const keyId = url.pathname.split('/').slice(-2, -1)[0]; // lấy keyId từ URL
+
+    if (!keyId || !ObjectId.isValid(keyId)) {
+      return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
+    }
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID is required' }, { status: 400 });
     }
 
+    const { db } = await connectToDatabase();
+
     // Build the query to find the specific device
     const deviceQuery = assignmentId
       ? {
-          _id: new ObjectId(params.keyId),
+          _id: new ObjectId(keyId),
           'devices.deviceId': deviceId,
           'devices.assignmentId': new ObjectId(assignmentId),
         }
       : {
-          _id: new ObjectId(params.keyId),
+          _id: new ObjectId(keyId),
           'devices.deviceId': deviceId,
         };
 
@@ -61,7 +69,7 @@ export async function POST(request: NextRequest, { params }: { params: { keyId: 
       resourceType: 'device_revocation',
       resourceId: deviceId,
       details: {
-        keyId: params.keyId,
+        keyId,
         assignmentId,
         deviceId,
       },
