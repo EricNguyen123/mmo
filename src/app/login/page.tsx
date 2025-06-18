@@ -2,7 +2,6 @@
 'use client';
 
 import type React from 'react';
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -20,29 +19,50 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
+  // Hàm tạo hoặc lấy deviceId từ localStorage
+  const getOrCreateDeviceId = () => {
+    let deviceId = localStorage.getItem('deviceId');
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('deviceId', deviceId);
+    }
+    return deviceId;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
+      const deviceId = getOrCreateDeviceId();
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({ ...credentials, deviceId }),
       });
-
       const data = await response.json();
+      console.log(data);
 
       if (response.ok) {
-        // Store token in localStorage for client-side access
+        // Lưu authToken vào localStorage
         localStorage.setItem('authToken', data.token);
 
-        // Redirect based on user role
+        // Lưu deviceId được trả về từ server
+        if (data.deviceId) {
+          localStorage.setItem('deviceId', data.deviceId);
+        }
+
+        // Chuyển hướng dựa trên vai trò người dùng và trạng thái kích hoạt thiết bị
         if (data.user.role === 'ADMIN') {
           router.push('/admin/dashboard');
-        } else {
-          router.push('/user/activate');
+        } else if (data.user.role === 'USER') {
+          if (data.isDeviceActivated) {
+            localStorage.setItem('userToken', data.token);
+            router.push('/user/dashboard');
+          } else {
+            router.push('/user/activate');
+          }
         }
       } else {
         setError(data.error || 'Login failed');

@@ -34,13 +34,22 @@ export default function UserActivation() {
     setError('');
 
     try {
+      // Sử dụng deviceId đã được lưu trong localStorage từ login
+      const deviceId = localStorage.getItem('deviceId');
+
+      if (!deviceId) {
+        setError('Device ID not found. Please try logging in again.');
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch('/api/user/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           activationKey,
-          deviceId: generateDeviceId(),
-          userId: user ? user._id : undefined, // Add the user ID from the authenticated user
+          deviceId,
+          userId: user ? user._id : undefined,
         }),
       });
 
@@ -57,10 +66,6 @@ export default function UserActivation() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateDeviceId = () => {
-    return `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   };
 
   if (authLoading) {

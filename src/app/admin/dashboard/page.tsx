@@ -92,7 +92,6 @@ export default function AdminDashboard() {
         setKeys(data.keys);
       }
     } catch (error) {
-      console.error('Failed to fetch keys:', error);
       setMessage('Failed to fetch keys');
     }
   };
@@ -104,9 +103,7 @@ export default function AdminDashboard() {
         const data = await response.json();
         setStats(data.stats.overview);
       }
-    } catch (error) {
-      console.error('Failed to fetch statistics:', error);
-    }
+    } catch (error) {}
   };
 
   const generateKey = async () => {

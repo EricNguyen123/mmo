@@ -21,6 +21,10 @@ import {
   RefreshCw,
   Bug,
   CheckCircle,
+  Download,
+  User,
+  Key,
+  Bolt,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/ui/user-nav';
@@ -43,7 +47,10 @@ export default function UserDashboard() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>({});
   const [retryingAccess, setRetryingAccess] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+
+  // New states for picked credential feature
+  const [pickedCredential, setPickedCredential] = useState<Credential | null>(null);
+  const [picking, setPicking] = useState(false);
 
   const router = useRouter();
 
@@ -55,7 +62,7 @@ export default function UserDashboard() {
 
   if (authLoading) {
     return (
-      <div className='min-h-screen bg-slate-50 flex items-center justify-center'>
+      <div className='min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-4'>
         <div className='text-center'>
           <div className='w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-2'></div>
           <p className='text-slate-600'>Loading...</p>
@@ -73,6 +80,32 @@ export default function UserDashboard() {
     setMessage(msg);
     setMessageType(type);
     setTimeout(() => setMessage(''), 5000);
+  };
+
+  // NEW FUNCTION: Pick random credential
+  const pickRandomCredential = async () => {
+    if (credentials.length === 0) {
+      showMessage('No credentials available to pick!', 'error');
+      return;
+    }
+
+    setPicking(true);
+
+    try {
+      setPickedCredential(credentials[0]);
+      showMessage('Credential picked successfully!', 'success');
+      deleteCredential(credentials[0]._id);
+      fetchCredentials();
+    } catch (error) {
+      console.error('Pick credential error:', error);
+      await handleApiError(error);
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  const clearPickedCredential = () => {
+    setPickedCredential(null);
   };
 
   const retryAccess = async () => {
@@ -130,8 +163,6 @@ export default function UserDashboard() {
         return;
       }
 
-      console.log('Fetching credentials with token:', token.substring(0, 20) + '...');
-
       const response = await fetch('/api/user/credentials', {
         method: 'GET',
         headers: {
@@ -140,11 +171,8 @@ export default function UserDashboard() {
         },
       });
 
-      console.log('Credentials response status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('Credentials data:', data);
         setCredentials(data.credentials || []);
         showMessage(`Loaded ${data.credentials?.length || 0} credentials`, 'success');
       } else {
@@ -290,14 +318,23 @@ export default function UserDashboard() {
   };
 
   return (
-    <div className='min-h-screen bg-slate-50 p-6'>
-      <header className='flex justify-between items-center mb-8'>
+    <div className='min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 sm:p-6'>
+      <header className='flex justify-between items-center mb-6 sm:mb-8 gap-4'>
         <div>
-          <h1 className='text-3xl font-bold text-slate-900 mb-2'>Credential Manager</h1>
-          <p className='text-slate-600'>Securely store and manage your credentials</p>
+          <h1 className='text-xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2'>
+            Credential Manager
+          </h1>
+          <p className='text-slate-600 text-sm sm:text-base'>
+            Securely store and manage your credentials
+          </p>
         </div>
-        <UserNav user={user} />
+        <div className='flex items-center gap-4'>
+          <div className='self-start sm:self-auto'>
+            <UserNav user={user} />
+          </div>
+        </div>
       </header>
+
       <div className='max-w-6xl mx-auto'>
         {message && (
           <Alert
@@ -306,12 +343,12 @@ export default function UserDashboard() {
             }`}
           >
             {messageType === 'error' ? (
-              <AlertCircle className='h-4 w-4 text-red-600' />
+              <AlertCircle className='h-4 w-4 text-red-600 flex-shrink-0' />
             ) : (
-              <CheckCircle className='h-4 w-4 text-green-600' />
+              <CheckCircle className='h-4 w-4 text-green-600 flex-shrink-0' />
             )}
             <AlertDescription
-              className={messageType === 'error' ? 'text-red-700' : 'text-green-700'}
+              className={`${messageType === 'error' ? 'text-red-700' : 'text-green-700'} text-sm`}
             >
               {message}
               {messageType === 'error' && message.includes('revoked') && (
@@ -321,16 +358,16 @@ export default function UserDashboard() {
                     variant='outline'
                     onClick={retryAccess}
                     disabled={retryingAccess}
-                    className='text-orange-700 border-orange-300 hover:bg-orange-100'
+                    className='text-orange-700 border-orange-300 hover:bg-orange-100 text-xs sm:text-sm'
                   >
                     {retryingAccess ? (
                       <>
-                        <RefreshCw className='w-4 h-4 mr-2 animate-spin' />
+                        <RefreshCw className='w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin' />
                         Refreshing...
                       </>
                     ) : (
                       <>
-                        <RefreshCw className='w-4 h-4 mr-2' />
+                        <RefreshCw className='w-3 h-3 sm:w-4 sm:h-4 mr-2' />
                         Refresh Access
                       </>
                     )}
@@ -341,36 +378,163 @@ export default function UserDashboard() {
           </Alert>
         )}
 
+        {/* NEW: Picked Credential Display */}
+        {pickedCredential && (
+          <Card className='mb-6 border-2 border-green-200 bg-green-50/50 shadow-lg'>
+            <CardHeader className='pb-4'>
+              <div className='flex items-center justify-between'>
+                <CardTitle className='text-xl text-green-800 flex items-center gap-2'>
+                  <Download className='w-5 h-5' />
+                  Selected Credential
+                </CardTitle>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={clearPickedCredential}
+                  className='text-green-700 border-green-300 hover:bg-green-100'
+                >
+                  Close
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div className='space-y-2'>
+                  <Label className='text-sm font-medium text-green-700 flex items-center gap-1'>
+                    <User className='w-4 h-4' />
+                    Username
+                  </Label>
+                  <div className='flex items-center gap-2'>
+                    <code className='bg-white px-3 py-2 rounded-lg text-sm font-mono flex-1 border border-green-200 break-all'>
+                      {pickedCredential.username}
+                    </code>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => copyToClipboard(pickedCredential.username, 'Username')}
+                      className='flex-shrink-0'
+                    >
+                      <Copy className='w-4 h-4' />
+                    </Button>
+                  </div>
+                </div>
+                <div className='space-y-2'>
+                  <Label className='text-sm font-medium text-green-700 flex items-center gap-1'>
+                    <Key className='w-4 h-4' />
+                    Password
+                  </Label>
+                  <div className='flex items-center gap-2'>
+                    <code className='bg-white px-3 py-2 rounded-lg text-sm font-mono flex-1 border border-green-200 break-all'>
+                      {showPasswords['picked'] ? pickedCredential.password : '••••••••'}
+                    </code>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => togglePasswordVisibility('picked')}
+                      className='flex-shrink-0'
+                    >
+                      {showPasswords['picked'] ? (
+                        <EyeOff className='w-4 h-4' />
+                      ) : (
+                        <Eye className='w-4 h-4' />
+                      )}
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => copyToClipboard(pickedCredential.password, 'Password')}
+                      className='flex-shrink-0'
+                    >
+                      <Copy className='w-4 h-4' />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className='mb-6 shadow-md rounded-xl border border-blue-100 bg-blue-50/70 backdrop-blur-sm'>
+          <CardHeader className='pb-4'>
+            <CardTitle className='text-lg sm:text-xl text-blue-800 flex items-center gap-2'>
+              <Bolt className='w-5 h-5' /> Quick Actions
+            </CardTitle>
+            <CardDescription className='text-sm text-blue-600'>
+              Perform key actions here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='pt-0 pb-6 flex flex-col items-center justify-center'>
+            <Button
+              onClick={pickRandomCredential}
+              disabled={picking || credentials.length === 0}
+              size='lg'
+              className='relative group overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 text-lg font-semibold rounded-full shadow-lg transition-all duration-300 ease-out
+                   hover:from-blue-700 hover:to-purple-700 hover:scale-105 hover:shadow-xl
+                   active:scale-95 active:shadow-inner
+                   focus:outline-none focus:ring-4 focus:ring-blue-300 focus:ring-opacity-75'
+            >
+              {picking ? (
+                <>
+                  <RefreshCw className='w-5 h-5 mr-2 animate-spin' />
+                  Picking credential...
+                </>
+              ) : (
+                <>
+                  <Download className='w-5 h-5 mr-2 group-hover:animate-bounce-y' />
+                  Pick Random Credential
+                </>
+              )}
+            </Button>
+            {credentials.length === 0 && (
+              <p className='text-sm text-slate-600 mt-4 flex items-center justify-center gap-2'>
+                <AlertCircle className='w-4 h-4 text-orange-500' />
+                No credentials available to pick. Please add credentials first.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue='add' className='space-y-6'>
-          <TabsList>
-            <TabsTrigger value='add' className='flex items-center gap-2'>
-              <Plus className='w-4 h-4' />
-              Add Credentials
+          <TabsList className='grid w-full grid-cols-2'>
+            <TabsTrigger
+              value='add'
+              className='flex items-center gap-1 sm:gap-2 text-xs sm:text-sm'
+            >
+              <Plus className='w-3 h-3 sm:w-4 sm:h-4' />
+              <span className='hidden sm:inline'>Add Credentials</span>
+              <span className='sm:hidden'>Add</span>
             </TabsTrigger>
-            <TabsTrigger value='manage' className='flex items-center gap-2'>
-              <Copy className='w-4 h-4' />
-              Manage Credentials ({credentials.length})
+            <TabsTrigger
+              value='manage'
+              className='flex items-center gap-1 sm:gap-2 text-xs sm:text-sm'
+            >
+              <Copy className='w-3 h-3 sm:w-4 sm:h-4' />
+              <span className='hidden sm:inline'>Manage Credentials ({credentials.length})</span>
+              <span className='sm:hidden'>Manage ({credentials.length})</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value='add' className='space-y-6'>
-            <div className='grid md:grid-cols-2 gap-6'>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Bulk Import</CardTitle>
-                  <CardDescription>
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+              <Card className='shadow-lg border-0 bg-white/80 backdrop-blur-sm'>
+                <CardHeader className='pb-4'>
+                  <CardTitle className='text-lg sm:text-xl text-slate-800'>Bulk Import</CardTitle>
+                  <CardDescription className='text-sm'>
                     Add multiple credentials using the format: username|password (one per line)
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-4'>
                   <div className='space-y-2'>
-                    <Label htmlFor='bulkInput'>Credentials List</Label>
+                    <Label htmlFor='bulkInput' className='text-sm font-medium'>
+                      Credentials List
+                    </Label>
                     <Textarea
                       id='bulkInput'
                       placeholder='user1|password1&#10;user2|password2&#10;user3|password3'
                       value={bulkInput}
                       onChange={(e) => setBulkInput(e.target.value)}
-                      rows={8}
+                      rows={6}
+                      className='text-sm'
                     />
                     <p className='text-xs text-slate-500'>
                       Format: username|password (one per line)
@@ -379,21 +543,26 @@ export default function UserDashboard() {
                   <Button
                     onClick={addBulkCredentials}
                     disabled={loading || !bulkInput.trim()}
-                    className='w-full'
+                    className='w-full text-sm'
+                    size='sm'
                   >
                     {loading ? 'Adding...' : 'Add Bulk Credentials'}
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Single Entry</CardTitle>
-                  <CardDescription>Add individual credentials one at a time</CardDescription>
+              <Card className='shadow-lg border-0 bg-white/80 backdrop-blur-sm'>
+                <CardHeader className='pb-4'>
+                  <CardTitle className='text-lg sm:text-xl text-slate-800'>Single Entry</CardTitle>
+                  <CardDescription className='text-sm'>
+                    Add individual credentials one at a time
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-4'>
                   <div className='space-y-2'>
-                    <Label htmlFor='username'>Username</Label>
+                    <Label htmlFor='username' className='text-sm font-medium'>
+                      Username
+                    </Label>
                     <Input
                       id='username'
                       value={singleCredential.username}
@@ -401,10 +570,13 @@ export default function UserDashboard() {
                         setSingleCredential((prev) => ({ ...prev, username: e.target.value }))
                       }
                       placeholder='Enter username'
+                      className='text-sm'
                     />
                   </div>
                   <div className='space-y-2'>
-                    <Label htmlFor='password'>Password</Label>
+                    <Label htmlFor='password' className='text-sm font-medium'>
+                      Password
+                    </Label>
                     <Input
                       id='password'
                       type='password'
@@ -413,6 +585,7 @@ export default function UserDashboard() {
                         setSingleCredential((prev) => ({ ...prev, password: e.target.value }))
                       }
                       placeholder='Enter password'
+                      className='text-sm'
                     />
                   </div>
                   <Button
@@ -422,7 +595,8 @@ export default function UserDashboard() {
                       !singleCredential.username.trim() ||
                       !singleCredential.password.trim()
                     }
-                    className='w-full'
+                    className='w-full text-sm'
+                    size='sm'
                   >
                     {loading ? 'Adding...' : 'Add Credential'}
                   </Button>
@@ -432,79 +606,90 @@ export default function UserDashboard() {
           </TabsContent>
 
           <TabsContent value='manage'>
-            <Card>
-              <CardHeader>
-                <CardTitle>Stored Credentials</CardTitle>
-                <CardDescription>View, copy, and manage your stored credentials</CardDescription>
+            <Card className='shadow-lg border-0 bg-white/80 backdrop-blur-sm'>
+              <CardHeader className='pb-4'>
+                <CardTitle className='text-lg sm:text-xl text-slate-800'>
+                  Stored Credentials
+                </CardTitle>
+                <CardDescription className='text-sm'>
+                  View, copy, and manage your stored credentials
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className='space-y-4'>
                   {credentials.map((credential) => (
                     <div
                       key={credential._id}
-                      className='flex items-center justify-between p-4 border rounded-lg'
+                      className='flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4 bg-white/50 hover:bg-white/80 transition-colors'
                     >
-                      <div className='flex-1 grid grid-cols-2 gap-4'>
-                        <div>
-                          <Label className='text-xs text-slate-500'>Username</Label>
+                      <div className='flex-1 space-y-4 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4'>
+                        <div className='space-y-2'>
+                          <Label className='text-xs text-slate-500 font-medium'>Username</Label>
                           <div className='flex items-center gap-2'>
-                            <code className='bg-slate-100 px-2 py-1 rounded text-sm font-mono'>
+                            <code className='bg-slate-100 px-2 py-1 rounded text-xs sm:text-sm font-mono flex-1 break-all'>
                               {credential.username}
                             </code>
                             <Button
                               size='sm'
                               variant='ghost'
                               onClick={() => copyToClipboard(credential.username, 'Username')}
+                              className='flex-shrink-0 p-1 h-8 w-8'
                             >
-                              <Copy className='w-4 h-4' />
+                              <Copy className='w-3 h-3' />
                             </Button>
                           </div>
                         </div>
-                        <div>
-                          <Label className='text-xs text-slate-500'>Password</Label>
+                        <div className='space-y-2'>
+                          <Label className='text-xs text-slate-500 font-medium'>Password</Label>
                           <div className='flex items-center gap-2'>
-                            <code className='bg-slate-100 px-2 py-1 rounded text-sm font-mono'>
+                            <code className='bg-slate-100 px-2 py-1 rounded text-xs sm:text-sm font-mono flex-1 break-all'>
                               {showPasswords[credential._id] ? credential.password : '••••••••'}
                             </code>
                             <Button
                               size='sm'
                               variant='ghost'
                               onClick={() => togglePasswordVisibility(credential._id)}
+                              className='flex-shrink-0 p-1 h-8 w-8'
                             >
                               {showPasswords[credential._id] ? (
-                                <EyeOff className='w-4 h-4' />
+                                <EyeOff className='w-3 h-3' />
                               ) : (
-                                <Eye className='w-4 h-4' />
+                                <Eye className='w-3 h-3' />
                               )}
                             </Button>
                             <Button
                               size='sm'
                               variant='ghost'
                               onClick={() => copyToClipboard(credential.password, 'Password')}
+                              className='flex-shrink-0 p-1 h-8 w-8'
                             >
-                              <Copy className='w-4 h-4' />
+                              <Copy className='w-3 h-3' />
                             </Button>
                           </div>
                         </div>
                       </div>
-                      <div className='flex items-center gap-2'>
-                        <Badge variant='outline'>
+
+                      <div className='flex items-center justify-between sm:justify-end gap-2 sm:flex-col sm:items-end'>
+                        <Badge variant='outline' className='text-xs'>
                           {new Date(credential.createdAt).toLocaleDateString()}
                         </Badge>
                         <Button
                           size='sm'
                           variant='ghost'
                           onClick={() => deleteCredential(credential._id)}
+                          className='text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-8 w-8'
                         >
-                          <Trash2 className='w-4 h-4' />
+                          <Trash2 className='w-3 h-3' />
                         </Button>
                       </div>
                     </div>
                   ))}
                   {credentials.length === 0 && (
-                    <p className='text-center text-slate-500 py-8'>
-                      No credentials stored yet. Add some using the Add Credentials tab.
-                    </p>
+                    <div className='text-center text-slate-500 py-8'>
+                      <p className='text-sm sm:text-base'>
+                        No credentials stored yet. Add some using the Add Credentials tab.
+                      </p>
+                    </div>
                   )}
                 </div>
               </CardContent>

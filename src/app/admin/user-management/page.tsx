@@ -178,7 +178,6 @@ export default function UserManagementPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch data:', error);
       setMessage('Failed to fetch data');
     } finally {
       setLoading(false);
@@ -192,9 +191,7 @@ export default function UserManagementPage() {
         const data = await response.json();
         setStatistics(data.stats);
       }
-    } catch (error) {
-      console.error('Failed to fetch statistics:', error);
-    }
+    } catch (error) {}
   };
 
   const fetchAllUsers = async () => {
@@ -204,9 +201,7 @@ export default function UserManagementPage() {
         const data = await response.json();
         setAllUsers(data.users);
       }
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
-    }
+    } catch (error) {}
   };
 
   const fetchAvailableKeys = async () => {
@@ -232,9 +227,7 @@ export default function UserManagementPage() {
         const unassignedKeys = data.keys.filter((key: any) => !assignedKeyIds.has(key._id));
         setAvailableKeys(unassignedKeys);
       }
-    } catch (error) {
-      console.error('Failed to fetch available keys:', error);
-    }
+    } catch (error) {}
   };
 
   const handleAssignKey = async () => {
