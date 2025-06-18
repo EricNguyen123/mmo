@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
-export async function DELETE(request: NextRequest, context: { params: Record<string, string> }) {
+export async function DELETE(request: NextRequest, context: { params: { keyId: string } }) {
   try {
     const cookieStore = await cookies();
     const adminSession = cookieStore.get('admin_session');
